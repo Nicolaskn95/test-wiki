@@ -1,0 +1,50 @@
+name: Update Wiki Home on page creation
+
+on:
+  gollum:
+
+jobs:
+  update-home:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Wiki Repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          # Precisamos de um token de acesso pessoal para poder fazer push para o wiki
+          token: ${{ secrets.WIKI_TOKEN }}
+
+      - name: Get latest commit details
+        id: commit
+        run: |
+          # Pega a mensagem do último commit
+          commit_message=$(git log -1 --pretty=%B)
+          # Pega o nome do arquivo do commit (funciona para criação e edição)
+          file_name=$(echo "$commit_message" | sed -n 's/.* \([^ ]*\)$/\1/p' | sed 's/\.md$//')
+          echo "::set-output name=file_name::$file_name"
+
+      - name: Update Home.md
+        run: |
+          # Constrói o link para a nova página
+          new_entry="- [${{ steps.commit.outputs.file_name }}](${{ steps.commit.outputs.file_name }})"
+          
+          # Título da seção que procuramos
+          section_title="## Últimas Atualizações"
+          
+          # Verifica se a seção já existe no Home.md
+          if grep -q "$section_title" Home.md; then
+            # Adiciona a nova entrada na linha seguinte à seção
+            sed -i "/$section_title/a\\$new_entry" Home.md
+          else
+            # Se a seção não existir, adiciona a seção e a nova entrada no final do arquivo
+            echo -e "\n$section_title\n$new_entry" >> Home.md
+          fi
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add Home.md
+          # Só faz o commit se houver alterações
+          git diff-index --quiet HEAD || git commit -m "Update Home.md with latest changes"
+          git push
