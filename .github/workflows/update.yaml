@@ -95,12 +95,3 @@ jobs:
           git add Home.md
           git commit -m "Docs: Auto-update Home.md with new pages"
           git push
-
-      - name: Commit and push changes
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add Home.md
-          # Só faz o commit se houver alterações
-          git diff-index --quiet HEAD || git commit -m "Update Home.md with latest changes"
-          git push
