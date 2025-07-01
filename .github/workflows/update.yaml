@@ -15,7 +15,7 @@ jobs:
         with:
           repository: ${{ github.repository }}.wiki
           # Precisamos de um token de acesso pessoal para poder fazer push para o wiki
-          token: ${{ secrets.WIKI_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get latest commit details
         id: commit
