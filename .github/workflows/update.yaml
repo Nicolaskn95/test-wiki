@@ -5,6 +5,9 @@ on:
 
 jobs:
   update-home:
+    permissions:
+      contents: write
+
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Wiki Repo
@@ -27,10 +30,10 @@ jobs:
         run: |
           # Constrói o link para a nova página
           new_entry="- [${{ steps.commit.outputs.file_name }}](${{ steps.commit.outputs.file_name }})"
-          
+
           # Título da seção que procuramos
           section_title="## Últimas Atualizações"
-          
+
           # Verifica se a seção já existe no Home.md
           if grep -q "$section_title" Home.md; then
             # Adiciona a nova entrada na linha seguinte à seção
