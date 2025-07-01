@@ -20,30 +20,31 @@ jobs:
 
       - name: Update Home.md
         run: |
-          # Extrai o nome da página da mensagem do commit (Ex: "Created My-New-Page")
-          commit_message=$(git log -1 --pretty=%B)
-          page_name=$(echo "$commit_message" | sed -n 's/.* \([^ ]*\)$/\1/p')
+          # Identifica o arquivo .md que foi alterado no último commit. Este método é mais robusto.
+          changed_file=$(git diff-tree --no-commit-id --name-only -r HEAD | grep '\.md$')
 
-          if [ -z "$page_name" ]; then
-            echo "Não foi possível determinar o nome da página a partir da mensagem do commit."
+          if [ -z "$changed_file" ]; then
+            echo "Nenhum arquivo .md encontrado na última alteração."
             exit 0
           fi
+
+          # Extrai o nome da página do nome do arquivo (removendo a extensão .md)
+          page_name=$(basename "$changed_file" .md)
 
           if [ "$page_name" = "Home" ]; then
             echo "A alteração foi na Home.md, nenhuma atualização é necessária."
             exit 0
           fi
 
-          echo "Página atualizada detectada: $page_name"
+          echo "Página atualizada detectada: $page_name ($changed_file)"
 
           # Tenta extrair o título H1 (linha com #) do arquivo .md
-          page_file="${page_name}.md"
-          if [ -f "$page_file" ] && title_from_file=$(grep -m 1 '^# ' "$page_file"); then
+          if [ -f "$changed_file" ] && title_from_file=$(grep -m 1 '^# ' "$changed_file"); then
             # Remove o '# ' do início para obter o título puro
             page_title=$(echo "$title_from_file" | sed 's/^# //')
             echo "Título encontrado no arquivo: '$page_title'"
           else
-            # Se não houver título H1, usa o nome do arquivo como fallback
+            # Se não houver título H1, usa o nome da página como fallback
             page_title="$page_name"
             echo "Nenhum título H1 encontrado. Usando nome do arquivo: '$page_title'"
           fi
