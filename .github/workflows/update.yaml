@@ -20,21 +20,15 @@ jobs:
 
       - name: Update Home.md
         run: |
-          # O evento 'gollum' é acionado para cada página alterada.
-          # A mensagem do commit geralmente é "Created PageName" ou "Updated PageName".
+          # Extrai o nome da página da mensagem do commit (Ex: "Created My-New-Page")
           commit_message=$(git log -1 --pretty=%B)
-
-          # Extrai o nome da página da mensagem. Assume que é a última palavra.
-          # Ex: "Created My-New-Page" -> "My-New-Page"
           page_name=$(echo "$commit_message" | sed -n 's/.* \([^ ]*\)$/\1/p')
 
-          # Se não for possível extrair um nome de página, encerra o script.
           if [ -z "$page_name" ]; then
             echo "Não foi possível determinar o nome da página a partir da mensagem do commit."
             exit 0
           fi
 
-          # Não adiciona um link para a própria página Home para evitar loops.
           if [ "$page_name" = "Home" ]; then
             echo "A alteração foi na Home.md, nenhuma atualização é necessária."
             exit 0
@@ -42,20 +36,32 @@ jobs:
 
           echo "Página atualizada detectada: $page_name"
 
+          # Tenta extrair o título H1 (linha com #) do arquivo .md
+          page_file="${page_name}.md"
+          if [ -f "$page_file" ] && title_from_file=$(grep -m 1 '^# ' "$page_file"); then
+            # Remove o '# ' do início para obter o título puro
+            page_title=$(echo "$title_from_file" | sed 's/^# //')
+            echo "Título encontrado no arquivo: '$page_title'"
+          else
+            # Se não houver título H1, usa o nome do arquivo como fallback
+            page_title="$page_name"
+            echo "Nenhum título H1 encontrado. Usando nome do arquivo: '$page_title'"
+          fi
+
           # Define o cabeçalho que procuramos ou adicionamos
           header="## Últimas atualizações"
 
-          # Garante que o arquivo Home.md exista antes de tentar modificá-lo
+          # Garante que o arquivo Home.md exista
           touch Home.md
 
-          # Verifica se o cabeçalho já existe em Home.md. Se não, adiciona-o.
+          # Adiciona o cabeçalho ao Home.md se ele não existir
           if ! grep -q "$header" Home.md; then
             echo "Adicionando cabeçalho '$header' ao Home.md"
             echo -e "\n$header" >> Home.md
           fi
 
-          # Cria a linha de link em Markdown (o link da wiki não precisa de .md)
-          link_line="- [${page_name}]($page_name)"
+          # Cria a linha de link em Markdown usando o título extraído
+          link_line="- [${page_title}]($page_name)"
 
           # Verifica se o link já existe para evitar duplicatas
           if grep -qF -- "$link_line" Home.md; then
@@ -65,8 +71,7 @@ jobs:
 
           echo "Adicionando link ao Home.md: $link_line"
 
-          # Usa 'sed' para inserir a nova linha de link logo abaixo do cabeçalho.
-          # A barra invertida extra antes de $link_line é para o sed interpretar corretamente.
+          # Usa 'sed' para inserir a nova linha de link logo abaixo do cabeçalho
           sed -i "/$header/a \\$link_line" Home.md
 
           echo "Conteúdo do Home.md atualizado:"
@@ -84,5 +89,5 @@ jobs:
           fi
 
           git add Home.md
-          git commit -m "Docs: Atualiza Home.md com link para nova página"
+          git commit -m "Docs: Atualiza Home.md com link para '${page_title}'"
           git push
