@@ -13,85 +13,76 @@ jobs:
       - name: Checkout Wiki Repo
         uses: actions/checkout@v4
         with:
+          # Faz o checkout do repositório do wiki, não do principal
           repository: ${{ github.repository }}.wiki
-          # Precisamos de um token de acesso pessoal para poder fazer push para o wiki
+          # Usa o token automático do GitHub Actions para ter permissão de escrita
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get latest commit details
-        id: commit
+      - name: Update Home.md
         run: |
-          # Pega a mensagem do último commit
+          # O evento 'gollum' é acionado para cada página alterada.
+          # A mensagem do commit geralmente é "Created PageName" ou "Updated PageName".
           commit_message=$(git log -1 --pretty=%B)
-          # Pega o nome do arquivo do commit (funciona para criação e edição)
-          file_name=$(echo "$commit_message" | sed -n 's/.* \([^ ]*\)$/\1/p' | sed 's/\.md$//')
-          echo "::set-output name=file_name::$file_name"
 
-      - name: Update wiki/Home.md with new file links
-        run: |
-          # Pega a lista de arquivos .md ADICIONADOS no último push na pasta 'docs/'
-          # --diff-filter=A filtra apenas arquivos Adicionados (Added)
-          new_files=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- 'docs/**' | grep '\.md$')
+          # Extrai o nome da página da mensagem. Assume que é a última palavra.
+          # Ex: "Created My-New-Page" -> "My-New-Page"
+          page_name=$(echo "$commit_message" | sed -n 's/.* \([^ ]*\)$/\1/p')
 
-          # Se não houver novos arquivos Markdown, encerra o script com sucesso
-          if [ -z "$new_files" ]; then
-            echo "No new markdown files found in 'docs/'."
+          # Se não for possível extrair um nome de página, encerra o script.
+          if [ -z "$page_name" ]; then
+            echo "Não foi possível determinar o nome da página a partir da mensagem do commit."
             exit 0
           fi
 
-          echo "New files detected to be added to wiki:"
-          echo "$new_files"
-
-          # Entra no diretório da wiki para poder modificar os arquivos
-          cd wiki
-
-          # Define o cabeçalho que queremos procurar ou adicionar (Corrigido para "Últimas")
-          header="## Últimas atualizações"
-
-          # Verifica se o arquivo Home.md existe. Se não, cria.
-          if [ ! -f Home.md ]; then
-            echo "Home.md not found. Creating it."
-            echo "# Bem-vindo à Wiki" > Home.md
+          # Não adiciona um link para a própria página Home para evitar loops.
+          if [ "$page_name" = "Home" ]; then
+            echo "A alteração foi na Home.md, nenhuma atualização é necessária."
+            exit 0
           fi
 
-          # Verifica se o cabeçalho já existe no Home.md
+          echo "Página atualizada detectada: $page_name"
+
+          # Define o cabeçalho que procuramos ou adicionamos
+          header="## Últimas atualizações"
+
+          # Garante que o arquivo Home.md exista antes de tentar modificá-lo
+          touch Home.md
+
+          # Verifica se o cabeçalho já existe em Home.md. Se não, adiciona-o.
           if ! grep -q "$header" Home.md; then
-            echo "Header not found. Adding '$header' to Home.md"
-            # Adiciona o cabeçalho no final do arquivo se não existir
+            echo "Adicionando cabeçalho '$header' ao Home.md"
             echo -e "\n$header" >> Home.md
           fi
 
-          # Loop para cada novo arquivo encontrado
-          echo "$new_files" | while read -r file; do
-            # Remove o prefixo 'docs/' do caminho
-            page_name=$(echo "$file" | sed 's#^docs/##')
-            
-            # Cria o título a partir do nome do arquivo (remove .md)
-            title=$(echo "$page_name" | sed 's/\.md$//')
-            # Cria a URL para o link da wiki (remove .md)
-            wiki_link=$(echo "$title" | sed 's/ /-/g')
+          # Cria a linha de link em Markdown (o link da wiki não precisa de .md)
+          link_line="- [${page_name}]($page_name)"
 
-            # Cria a linha de link em Markdown
-            link_line="- [${title}]($wiki_link)"
-            
-            echo "Adding link to Home.md: $link_line"
+          # Verifica se o link já existe para evitar duplicatas
+          if grep -qF -- "$link_line" Home.md; then
+            echo "O link já existe em Home.md."
+            exit 0
+          fi
 
-            # Usa 'sed' para inserir a nova linha de link logo abaixo do cabeçalho
-            sed -i "/$header/a \\$link_line" Home.md
-          done
+          echo "Adicionando link ao Home.md: $link_line"
 
-          echo "Updated Home.md content:"
+          # Usa 'sed' para inserir a nova linha de link logo abaixo do cabeçalho.
+          # A barra invertida extra antes de $link_line é para o sed interpretar corretamente.
+          sed -i "/$header/a \\$link_line" Home.md
+
+          echo "Conteúdo do Home.md atualizado:"
           cat Home.md
 
-          # Passo 4: Fazer commit e push das mudanças para o repositório da WIKI
+      - name: Commit and push changes
+        run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Faz o commit apenas se houver mudanças
+          # Faz o commit apenas se houver mudanças reais no arquivo Home.md
           if git diff --quiet Home.md; then
-             echo "No changes to commit to the wiki."
+             echo "Nenhuma alteração para fazer commit no wiki."
              exit 0
           fi
 
           git add Home.md
-          git commit -m "Docs: Auto-update Home.md with new pages"
+          git commit -m "Docs: Atualiza Home.md com link para nova página"
           git push
